@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat</title>
+    <style>
+      body,
+      ul,
+      li {
+        margin: 0;
+      }
+      body {
+        height: 100vh;
+      }
+      * {
+        font-family: Fira Code;
+        line-height: 1.2;
+        box-sizing: border-box;
+        padding: 0;
+        font-size: 100px;
+        -webkit-text-stroke: 1px black;
+        color: #d3d5ab;
+        font-weight: bold;
+      }
+      #chat {
+        display: flex;
+        flex-direction: column;
+        list-style: none;
+        background-color: transparent;
+        word-wrap: break-word;
+      }
+
+      .message_wrapper {
+        display: flex;
+        justify-content: "center";
+        padding-left: 1.5em;
+        animation: appear 0.3s ease-in-out;
+        width: fit-content;
+      }
+
+      .message_content_wrapper {
+        display: flex;
+        flex-direction: row;
+        gap: 0.5em;
+        align-items: flex-start;
+      }
+
+      .username {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .badges {
+        display: flex;
+        height: 120px;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .badges > img {
+        height: 80%;
+      }
+
+      .message {
+        color: #73d675;
+        display: flex;
+        word-break: break-word;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      .multiline {
+        flex-direction: column;
+      }
+
+      .indent {
+        margin-left: 1.5em;
+      }
+
+      ::-webkit-scrollbar {
+        display: none;
+      }
+      .cursor {
+        padding-left: 1.5em;
+        animation: phase 1.5s ease-in-out 0s infinite normal forwards;
+      }
+
+      @keyframes phase {
+        0%,
+        50%,
+        100% {
+          opacity: 1;
+        }
+
+        25%,
+        75% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes appear {
+        0% {
+          transform: translate(-300px);
+          opacity: 0;
+        }
+        50% {
+          opacity: 0;
+        }
+        100% {
+          transform: translate(0px);
+          opacity: 1;
+        }
+      }
+
+      .emote {
+        height: 120px;
+      }
+    </style>
+    <script type="module">
+      const socket = io("http://localhost:3550");
+      let musicList = document.querySelector("#musicList");
+
+      socket.on("connect", () => {
+        socket.emit("storeClientInfo", { role: "chat" });
+        socket.on("message", (content, cb) => {
+          createChatMessage(content);
+          cb({
+            status: true,
+          });
+        });
+      });
+
+      let connectionStatus = true;
+      setInterval(() => {
+        if (socket.disconnected) {
+          console.log("Lost connection");
+          connectionStatus = false;
+        } else {
+          if (!connectionStatus) {
+            console.log("Connection reinstated");
+          }
+          connectionStatus = true;
+        }
+      }, 2000);
+
+      function createChatMessage({ user, message, color, badges, emotes }) {
+        if (badges) {
+          let tempBadges = [];
+          for (let badge in badges) {
+            switch (badge) {
+              case "broadcaster":
+                tempBadges.push("5527c58c-fb7d-422d-b71b-f309dcb85cc1");
+                break;
+              case "vip":
+                tempBadges.push("b817aba4-fad8-49e2-b88a-7cc744dfa6ec");
+                break;
+              case "moderator":
+                tempBadges.push("3267646d-33f0-4b17-b3df-f923a41db1d0");
+                break;
+              case "admin":
+                tempBadges.push("9ef7e029-4cdf-4d4d-a0d5-e2b3fb2583fe");
+                break;
+              case "staff":
+                tempBadges.push("d97c37bd-a6f5-4c38-8f57-4e4bef88af34");
+                break;
+              case "verified":
+                tempBadges.push("d12a2e27-16f6-41d0-ab77-b780518f00a3");
+                break;
+              case "moderator":
+                tempBadges.push("3267646d-33f0-4b17-b3df-f923a41db1d0");
+                break;
+
+              default:
+                break;
+            }
+            badges = tempBadges;
+          }
+        }
+
+        message = getMessageHTML(message, { emotes });
+        let chat = document.querySelector("#chat");
+        if (chat.childElementCount >= 100) {
+          chat.removeChild(chat.childNodes[0]);
+        }
+
+        const usernameId = `i${Math.floor(Math.random() * 1000000)}`;
+        const wrapperId = `i${Math.floor(Math.random() * 1000000)}`;
+        let el = document.createElement("li");
+        el.className = "message_wrapper";
+        el.id = wrapperId;
+        el.innerHTML = `
+    <span>{&nbsp;</span>
+    <span class="message_content_wrapper">
+      <span 
+        id="${usernameId}" 
+        style="color: ${color}"   
+        class="username" 
+      >
+        <span class="badges">
+          ${badges
+            .map((badge) => {
+              return `<img style="" src="https://static-cdn.jtvnw.net/badges/v1/${badge}/3" />`;
+            })
+            .join("")}
+        </span>
+        ${user}:
+      </span>
+      <span class="message">"${message}"</span>
+    </span>
+    <span>&nbsp;},</span>`;
+        chat.appendChild(el);
+        if (el.clientWidth >= document.body.clientWidth) {
+          el.innerHTML = el.innerHTML
+            .replace("{&nbsp;", "{")
+            .replace("&nbsp;}", "}");
+          document.querySelector(`#${wrapperId}`).classList.add("multiline");
+          document.querySelector(`#${usernameId}`).classList.add("indent");
+        }
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      function getMessageHTML(message, { emotes }) {
+        if (!emotes) return message;
+
+        // store all emote keywords
+        // ! you have to first scan through
+        // the message string and replace later
+        const stringReplacements = [];
+
+        // iterate of emotes to access ids and positions
+        Object.entries(emotes).forEach(([id, positions]) => {
+          // use only the first position to find out the emote key word
+          const position = positions[0];
+          const [start, end] = position.split("-");
+          const stringToReplace = message.substring(
+            parseInt(start, 10),
+            parseInt(end, 10) + 1
+          );
+
+          stringReplacements.push({
+            stringToReplace: stringToReplace,
+            replacement: `<img class="emote" src="https://static-cdn.jtvnw.net/emoticons/v1/${id}/3.0">`,
+          });
+        });
+
+        // generate HTML and replace all emote keywords with image elements
+        const messageHTML = stringReplacements.reduce(
+          (acc, { stringToReplace, replacement }) => {
+            // obs browser doesn't seam to know about replaceAll
+            return acc.split(stringToReplace).join(replacement);
+          },
+          message
+        );
+
+        return messageHTML;
+      }
+    </script>
+  </head>
+  <script
+    src="https://cdn.socket.io/4.5.3/socket.io.min.js"
+    integrity="sha384-WPFUvHkB1aHA5TDSZi6xtDgkF0wXJcIIxXhC6h8OT8EH3fC5PWro5pWJ1THjcfEi"
+    crossorigin="anonymous"
+  ></script>
+  <body>
+    <ul id="chat">
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <br />
+      <li>[</li>
+    </ul>
+    <div class="cursor">|</div>
+    <div>]</div>
+  </body>
+</html>
